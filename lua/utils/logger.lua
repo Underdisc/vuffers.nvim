@@ -40,8 +40,6 @@ function M.setup()
       })
 
       logger = log.get_logger("vuffers")
-    else
-      print("structlog is not installed")
     end
   end
 end
