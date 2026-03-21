@@ -49,7 +49,8 @@ local function _generate_line(buffer)
   local pinned_icon = config.get_view_config().pinned_icon
   local pinned_icon_text = bufs.is_pinned(buffer) and pinned_icon .. " " or ""
   local icon_text = icon ~= "" and icon .. " " or "  "
-  local text = pinned_icon_text .. icon_text .. buffer.name
+  local buffer_text = config.get_view_config().create_buffer_text(buffer)
+  local text = pinned_icon_text .. icon_text .. buffer_text
 
   ---@type Highlight[]
   local highlights = {}

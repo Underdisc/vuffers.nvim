@@ -23,6 +23,7 @@ local M = {}
 ---@field pinned_icon string
 ---@field window { auto_resize: boolean, width: number, focus_on_open: boolean }
 ---@field show_file_extension boolean
+---@field create_buffer_text fun(buffer: Buffer): string
 
 ---@class Keymaps
 ---@field use_default boolean
@@ -167,6 +168,9 @@ function M.setup(user_config)
       modified_icon = "󰛿", -- when a buffer is modified, this icon will be shown
       pinned_icon = "󰃀",
       show_file_extension = false,
+      create_buffer_text = function(buffer)
+        return buffer.name
+      end,
       window = {
         auto_resize = false,
         width = 35,
