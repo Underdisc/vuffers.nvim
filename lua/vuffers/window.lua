@@ -26,7 +26,7 @@ local buffer_options = {
 
 local window_options = {
   relativenumber = false,
-  number = true,
+  number = false,
   list = false,
   winfixwidth = true,
   winfixheight = true,

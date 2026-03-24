@@ -29,6 +29,7 @@ M.LOG_LEVEL = {
 M.HIGHLIGHTS = {
   WINDOW_BG = "VuffersWindowBackground",
   ACTIVE = "VuffersActiveBuffer",
+  INDEX = "VuffersIndex",
   MODIFIED_ICON = "VuffersModifiedIcon",
   PINNED_ICON = "VuffersPinnedIcon",
   ACTIVE_PINNED_ICON = "VuffersActivePinnedIcon",

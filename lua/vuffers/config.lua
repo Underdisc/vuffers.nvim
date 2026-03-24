@@ -19,6 +19,7 @@ local M = {}
 ---@field direction SortDirection
 
 ---@class View
+---@field padding integer
 ---@field modified_icon string
 ---@field pinned_icon string
 ---@field window { auto_resize: boolean, width: number, focus_on_open: boolean }
@@ -165,6 +166,7 @@ function M.setup(user_config)
       direction = "asc", -- "asc" | "desc"
     },
     view = {
+      padding = 1,
       modified_icon = "󰛿", -- when a buffer is modified, this icon will be shown
       pinned_icon = "󰃀",
       show_file_extension = false,

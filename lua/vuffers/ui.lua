@@ -6,13 +6,15 @@ local logger = require("utils.logger")
 local constants = require("vuffers.constants")
 local config = require("vuffers.config")
 
-local ACTIVE_BUFFER_HIGHT_START = 1
+local active_highlights = {}
 local M = {}
 
 local active_pinned_buffer_ns = vim.api.nvim_create_namespace("VuffersActivePinnedBuffer") -- namespace id
 local pinned_icon_ns = vim.api.nvim_create_namespace("VuffersPinnedBuffer") -- namespace id
 local active_buffer_ns = vim.api.nvim_create_namespace("VuffersActiveFileNamespace") -- namespace id
 local icon_ns = vim.api.nvim_create_namespace("VufferIconNamespace") -- namespace id
+local index_ns = vim.api.nvim_create_namespace("VuffersIndex")
+local spacing_ns = vim.api.nvim_create_namespace("VuffersSpacing")
 
 if not is_devicon_ok then
   print("devicon not found")
@@ -32,42 +34,110 @@ local function _get_icon(buffer)
   return icon or " ", color or ""
 end
 
+---@class LineGenInfo
+---@field buffer Buffer
+---@field idx_text string
+
 ---@class Highlight
 ---@field color string
----@field size integer
+---@field start_col integer
+---@field end_col integer
 ---@field namespace number
 
 ---@class Line
 ---@field text string
 ---@field modified boolean
 ---@field highlights Highlight[]
+---@field active_highlight Highlight
 
----@param buffer Buffer
+---@param line_gen_info LineGenInfo
 ---@return Line
-local function _generate_line(buffer)
-  local icon, icon_color = _get_icon(buffer)
-  local pinned_icon = config.get_view_config().pinned_icon
-  local pinned_icon_text = bufs.is_pinned(buffer) and pinned_icon .. " " or ""
-  local icon_text = icon ~= "" and icon .. " " or "  "
-  local buffer_text = config.get_view_config().create_buffer_text(buffer)
-  local text = pinned_icon_text .. icon_text .. buffer_text
+local function _generate_line(line_gen_info)
+  local view_config = config.get_view_config()
+  local text = ""
+  local modified = vim.bo[line_gen_info.buffer.buf].modified
+  local hls = {}
 
-  ---@type Highlight[]
-  local highlights = {}
+  local padding_text = string.rep(" ", view_config.padding)
+  text = text .. padding_text
+  table.insert(hls, {
+    color = constants.HIGHLIGHTS.WINDOW_BG,
+    start_col = 0,
+    end_col = view_config.padding,
+    namespace = spacing_ns,
+  })
 
-  if bufs.is_pinned(buffer) then
-    table.insert(
-      highlights,
-      { color = constants.HIGHLIGHTS.PINNED_ICON, size = string.len(pinned_icon), namespace = pinned_icon_ns }
-    )
+  text = text .. line_gen_info.idx_text .. " "
+  table.insert(hls, {
+    color = constants.HIGHLIGHTS.INDEX,
+    start_col = hls[#hls].end_col,
+    end_col = hls[#hls].end_col + string.len(line_gen_info.idx_text),
+    namespace = index_ns }
+  )
+  table.insert(hls, {
+    color = constants.HIGHLIGHTS.WINDOW_BG,
+    start_col = hls[#hls].end_col,
+    end_col = hls[#hls].end_col + 1,
+    namespace = spacing_ns,
+  })
+
+  if bufs.is_pinned(line_gen_info.buffer) then
+    local pinned_icon = view_config.pinned_icon
+    text = text .. view_config.pinned_icon .. " "
+    table.insert(hls, {
+      color = constants.HIGHLIGHTS.PINNED_ICON,
+      start_col = hls[#hls].end_col,
+      end_col = hls[#hls].end_col + string.len(pinned_icon),
+      namespace = pinned_icon_ns,
+    })
+    table.insert(hls, {
+      color = constants.HIGHLIGHTS.WINDOW_BG,
+      start_col = hls[#hls].end_col,
+      end_col = hls[#hls].end_col + 1,
+      namespace = spacing_ns,
+    })
   end
+
+  local icon, icon_color = _get_icon(line_gen_info.buffer)
   if icon ~= "" then
-    table.insert(highlights, { color = icon_color, size = string.len(icon), namespace = icon_ns })
+    text = text .. icon .. " "
+    table.insert(hls, {
+      color = icon_color,
+      start_col = hls[#hls].end_col,
+      end_col = hls[#hls].end_col + string.len(icon),
+      namespace = icon_ns,
+    })
+    table.insert(hls, {
+      color = constants.HIGHLIGHTS.WINDOW_BG,
+      start_col = hls[#hls].end_col,
+      end_col = hls[#hls].end_col + 1,
+      namespace = spacing_ns,
+    })
+  else
+    text = text .. "  "
+    table.insert(hls, {
+      color = constants.HIGHLIGHTS.WINDOW_BG,
+      start_col = hls[#hls].end_col,
+      end_col = hls[#hls].end_col + 2,
+      namespace = spacing_ns,
+    })
   end
 
-  local modified = vim.bo[buffer.buf].modified
+  local buffer_text = view_config.create_buffer_text(line_gen_info.buffer)
+  text = text .. view_config.create_buffer_text(line_gen_info.buffer)
+  local active_hl = {
+    color = constants.HIGHLIGHTS.ACTIVE,
+    start_col = hls[#hls].end_col,
+    end_col = hls[#hls].end_col + string.len(buffer_text),
+    namespace = active_buffer_ns,
+  }
 
-  return { text = text, modified = modified, highlights = highlights }
+  return {
+    text = text,
+    modified = modified,
+    highlights = hls,
+    active_highlight = active_hl,
+  }
 end
 
 ---@param window_bufnr integer
@@ -84,42 +154,29 @@ end
 
 ---@param window_bufnr integer
 ---@param line_number integer
----@return fun(highlight: Highlight)
-local function create_icon_highlighter(window_bufnr, line_number)
-  local last_end_col = -1
-
-  ---@param highlight Highlight
-  return function(highlight)
-    local SPACE = 1
-    local start = last_end_col + SPACE
-    local finish = start + highlight.size
-
-    logger.debug("highlight", { start = start, finish = finish, line_number = line_number })
-
+---@param highlights Highlight
+local function apply_line_highlights(window_bufnr, line_number, highlights)
+  for _, hl in ipairs(highlights) do
+    local start = {line_number, hl.start_col}
+    local finish = {line_number, hl.end_col}
     local ok = pcall(function()
-      vim.api.nvim_buf_add_highlight(window_bufnr, highlight.namespace, highlight.color, line_number, start, finish)
+      vim.hl.range(window_bufnr, hl.namespace, hl.color, start, finish)
     end)
-
-    last_end_col = finish
-
     if not ok then
-      logger.error("Error: Could not set highlight for file icon " .. window_bufnr)
+      logger.error("Error: Could not set highlight in " .. window_bufnr)
     end
   end
 end
+
 ---@param window_bufnr integer
 ---@param line_number integer
 local function _highlight_active_buffer(window_bufnr, line_number)
   local ok = pcall(function()
     vim.api.nvim_buf_clear_namespace(window_bufnr, active_buffer_ns, 0, -1)
-    vim.api.nvim_buf_add_highlight(
-      window_bufnr,
-      active_buffer_ns,
-      constants.HIGHLIGHTS.ACTIVE,
-      line_number,
-      ACTIVE_BUFFER_HIGHT_START,
-      -1
-    )
+    local hl = active_highlights[line_number + 1]
+    local start = {line_number, hl.start_col}
+    local finish = {line_number, hl.end_col}
+    vim.hl.range(window_bufnr, hl.namespace, hl.color, start, finish)
   end)
 
   if not ok then
@@ -239,8 +296,15 @@ function M.render_buffers(payload)
     return
   end
 
-  local lines = list.map(buffers, function(buffer)
-    return _generate_line(buffer)
+  local idx_gutter_length = #tostring(#buffers)
+  local lines = list.map(buffers, function(buffer, idx)
+    local idx_length = #tostring(idx)
+    local idx_text = string.rep(" ", idx_gutter_length - idx_length) .. idx
+    local line_gen_info = {
+      buffer = buffer,
+      idx_text = idx_text,
+    }
+    return _generate_line(line_gen_info)
   end)
 
   _render_lines(
@@ -250,6 +314,7 @@ function M.render_buffers(payload)
     end)
   )
 
+  active_highlights = {}
   for i, line in ipairs(lines) do
     local buf_nr = buffers[i].buf
     if line.modified then
@@ -259,12 +324,8 @@ function M.render_buffers(payload)
     end
 
     logger.debug("highlights", line.highlights)
-
-    local highlight_icon = create_icon_highlighter(window_nr, i - 1)
-
-    for _, highlight in ipairs(line.highlights) do
-      highlight_icon(highlight)
-    end
+    apply_line_highlights(window_nr, i - 1, line.highlights)
+    table.insert(active_highlights, line.active_highlight)
   end
 
   logger.debug("Rendered buffers")

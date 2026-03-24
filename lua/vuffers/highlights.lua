@@ -5,6 +5,7 @@ local M = {}
 local highlights = {
   [hl.WINDOW_BG] = "TabLineFill",
   [hl.ACTIVE] = "Identifier",
+  [hl.INDEX] = "LineNr",
   [hl.MODIFIED_ICON] = "Identifier",
   [hl.PINNED_ICON] = "Identifier",
   [hl.ACTIVE_PINNED_ICON] = "Identifier",
