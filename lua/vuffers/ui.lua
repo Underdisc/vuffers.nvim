@@ -103,7 +103,11 @@ local function _generate_line(idx)
   end
   right_text = right_text .. padding_text
 
-  local buffer_text = view_config.create_buffer_text(buffer)
+  local create_buffer_text_info = {
+    display_name = buffer.name,
+    path = buffer.path,
+  }
+  local buffer_text = view_config.create_buffer_text(create_buffer_text_info)
   if view_config.trim_buffer_text then
     local window_width = vim.api.nvim_win_get_width(window.get_window_number())
     local l_text_length = vim.str_utfindex(left_text)

@@ -24,7 +24,7 @@ local M = {}
 ---@field pinned_icon string
 ---@field window { auto_resize: boolean, width: number, focus_on_open: boolean }
 ---@field show_file_extension boolean
----@field create_buffer_text fun(buffer: Buffer): string
+---@field create_buffer_text fun(info: {display_name: string, path: string}): string
 ---@field highlight_entire_active_line boolean
 ---@field trim_buffer_text boolean
 ---@field trim_icon string
@@ -175,8 +175,8 @@ function M.setup(user_config)
       modified_icon = "󰛿", -- when a buffer is modified, this icon will be shown
       pinned_icon = "󰃀",
       show_file_extension = false,
-      create_buffer_text = function(buffer)
-        return buffer.name
+      create_buffer_text = function(info)
+        return info.display_name
       end,
       trim_buffer_text = false,
       trim_icon = "",
