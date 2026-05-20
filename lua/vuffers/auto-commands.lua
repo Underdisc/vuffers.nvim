@@ -81,18 +81,31 @@ function M.create_auto_group()
     end,
   })
 
-  vim.api.nvim_create_autocmd({ "BufModifiedSet" }, {
-    pattern = "*",
-    group = constants.AUTO_CMD_GROUP,
-    callback = function(buffer)
-      if not buf_utils.is_valid_buf(buffer) then
-        return
-      end
-      logger.debug("BufModifiedSet", { buffer = buffer })
-
-      ui.update_modified_icon(buffer)
-    end,
-  })
+  if vim.fn.exists("##BufModifiedSet") == 1 then
+    vim.api.nvim_create_autocmd({ "BufModifiedSet" }, {
+      pattern = "*",
+      group = constants.AUTO_CMD_GROUP,
+      callback = function(buffer)
+        if not buf_utils.is_valid_buf(buffer) then
+          return
+        end
+        logger.debug("BufModifiedSet", { buffer = buffer })
+        ui.update_modified_icon(buffer)
+      end,
+    })
+  else
+    vim.api.nvim_create_autocmd({ "OptionSet" }, {
+      pattern = "modified",
+      group = constants.AUTO_CMD_GROUP,
+      callback = function(buffer)
+        if not buf_utils.is_valid_buf(buffer) then
+          return
+        end
+        logger.debug("OptionSet modified", { buffer = buffer })
+        ui.update_modified_icon(buffer)
+      end,
+    })
+  end
 
   vim.api.nvim_create_autocmd("BufWritePost", {
     pattern = "*",
